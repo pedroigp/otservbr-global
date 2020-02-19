@@ -1532,6 +1532,10 @@ bool Game::removeMoney(Cylinder* cylinder, uint64_t money, uint32_t flags /*= 0*
 		}
 	}
 
+	if (moneyCount < money) {
+        return false;
+    }
+
 	for (const auto& moneyEntry : moneyMap) {
 		Item* item = moneyEntry.second;
 		if (moneyEntry.first < money) {
@@ -4875,7 +4879,13 @@ void Game::checkImbuements()
 
 		if (item->isRemoved() || !item->getParent()->getCreature()) {
 			ReleaseItem(item);
-			it = imbuedItems[bucket].erase(it);			
+			it = imbuedItems[bucket].erase(it);
+			continue;
+		}
+
+		Player* player = item->getParent()->getCreature()->getPlayer();
+		if (!player->hasCondition(CONDITION_INFIGHT)) {
+			it++;
 			continue;
 		}
 
@@ -4890,7 +4900,6 @@ void Game::checkImbuements()
 			}
 		}
 
-		Player* player = item->getParent()->getCreature()->getPlayer();
 		int32_t index = player ? player->getThingIndex(item) : -1;
 		needUpdate = needUpdate && index != -1;
 

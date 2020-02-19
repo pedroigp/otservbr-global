@@ -9,8 +9,8 @@ CONTAINER_WEIGHT = 1000000 -- 1000000 = 10k = 10000.00 oz | this function is onl
 -- Items sold on the store that should not be moved off the store container
 local storeItemID = {32384,32385,32386,32387,32388,32389,32124,32125,32126,32127,32128,32129,32109,33299,26378,29020}
 
--- No move items with actionID 8000
-NOT_MOVEABLE_ACTION = 8000
+-- No move/trade items with actionID 8000
+BLOCK_ITEM_WITH_ACTION = 8000
 
 -- Capacity imbuement store
 local STORAGE_CAPACITY_IMBUEMENT = 42154
@@ -277,7 +277,12 @@ local function antiPush(self, item, count, fromPosition, toPosition, fromCylinde
 end
 
 function Player:onMoveItem(item, count, fromPosition, toPosition, fromCylinder, toCylinder)
-  -- Store Items
+	-- No move items with actionID = 8000
+	if item:getActionId() == BLOCK_ITEM_WITH_ACTION then
+		self:sendCancelMessage(RETURNVALUE_NOTPOSSIBLE)
+		return false
+	end
+	-- Store Items
     if isInArray(storeItemID,item.itemid) then
         self:sendCancelMessage('You cannot move this item outside this container.')
         return false
@@ -291,9 +296,9 @@ function Player:onMoveItem(item, count, fromPosition, toPosition, fromCylinder, 
 
 	-- No move parcel very heavy
 	if DISABLE_CONTAINER_WEIGHT == 0 and ItemType(item:getId()):isContainer() and item:getWeight() > CONTAINER_WEIGHT then
-        self:sendCancelMessage("Your cannot move this item too heavy.")
-        return false
-    end
+		self:sendCancelMessage("Your cannot move this item too heavy.")
+		return false
+	end
 
 	-- Loot Analyser apenas 11.x+
 	if self:getClient().os == CLIENTOS_NEW_WINDOWS then
@@ -452,12 +457,6 @@ function Player:onMoveItem(item, count, fromPosition, toPosition, fromCylinder, 
 
 	-- No move gold pouch
 	if item:getId() == GOLD_POUCH then
-		self:sendCancelMessage(RETURNVALUE_NOTPOSSIBLE)
-		return false
-	end
-
-	-- No move items with actionID 8000
-	if item:getActionId() == NOT_MOVEABLE_ACTION then
 		self:sendCancelMessage(RETURNVALUE_NOTPOSSIBLE)
 		return false
 	end
@@ -633,7 +632,12 @@ function Player:onTurn(direction)
 end
 
 function Player:onTradeRequest(target, item)
-if isInArray(storeItemID,item.itemid) then
+	-- No trade items with actionID = 8000
+	if item:getActionId() == BLOCK_ITEM_WITH_ACTION then
+		return false
+	end
+
+	if isInArray(storeItemID,item.itemid) then
         return false
     end
  	return true
@@ -699,35 +703,6 @@ local function useStaminaXp(player)
 		nextUseXpStamina[playerId] = currentTime + 60
 	end
 	player:setExpBoostStamina(staminaMinutes * 60)
-end
-
--- Prey slots consumption
-local function preyTimeLeft(player, slot)
-	local timeLeft = player:getPreyTimeLeft(slot) / 60
-	local monster = player:getPreyCurrentMonster(slot)
-	if (timeLeft > 0) then
-		local playerId = player:getId()
-		local currentTime = os.time()
-		local timePassed = currentTime - nextPreyTime[playerId][slot]
-		if timePassed >= 59 then
-			timeLeft = timeLeft - 1
-			nextPreyTime[playerId][slot] = currentTime + 60
-		else
-			timeLeft = timeLeft - 0
-		end
-		-- Expiring prey as there's no timeLeft
-		if (timeLeft < 1) then
-			player:sendTextMessage(MESSAGE_EVENT_ADVANCE, string.format("Your %s's prey has expired.", monster:lower()))
-			player:setPreyCurrentMonster(slot, "")
-		end
-		-- Setting new timeLeft
-		player:setPreyTimeLeft(slot, timeLeft * 60)
-	else
-		-- Expiring prey as there's no timeLeft
-		player:sendTextMessage(MESSAGE_EVENT_ADVANCE, string.format("Your %s's prey has expired.", monster:lower()))
-		player:setPreyCurrentMonster(slot, "")
-	end
-	return player:sendPreyData(slot)
 end
 
 function Player:onGainExperience(source, exp, rawExp)
@@ -853,6 +828,12 @@ function Player:canBeAppliedImbuement(imbuement, item)
 	if imbuement:isPremium() and self:getPremiumDays() < 1 then
 		return false
 	end
+	
+	if self:getStorageValue(Storage.ForgottenKnowledge.Tomes) > 0 then
+              imbuable = true 
+   	else         
+              return false      
+   	end
 
 	if not self:canImbueItem(imbuement, item) then
 		return false
